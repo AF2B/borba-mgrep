@@ -1,0 +1,27 @@
+{:paths ["src" "test"]
+
+ :tasks
+ {test
+  {:doc  "Run the test suite"
+   :task (do
+           (require 'borba.mgrep.test-runner)
+           ((resolve 'borba.mgrep.test-runner/run) {}))}
+
+  lint
+  {:doc  "Lint sources and tests with clj-kondo"
+   :task (shell "clj-kondo --lint src test")}
+
+  fmt
+  {:doc  "Check formatting with cljfmt"
+   :task (shell "cljfmt check")}
+
+  fmt-fix
+  {:doc  "Fix formatting with cljfmt"
+   :task (shell "cljfmt fix")}
+
+  check
+  {:doc  "Run lint, format check and tests, in this order"
+   :task (do
+           (run 'lint)
+           (run 'fmt)
+           (run 'test))}}}

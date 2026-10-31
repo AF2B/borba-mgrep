@@ -1,0 +1,9 @@
+{:paths ["src"]
+
+ :deps {org.clojure/clojure {:mvn/version "1.12.6"}}
+
+ :aliases
+ {:test {:extra-paths ["test"]
+         :exec-fn     borba.mgrep.test-runner/run}
+
+  :run {:main-opts ["-m" "borba.mgrep.main"]}}}
