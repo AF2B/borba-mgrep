@@ -7,7 +7,7 @@
 
 (def version
   "Release identifier printed by --version. Must match the git tag."
-  "v1")
+  "v2")
 
 (def stdin-marker
   "Source argument that selects standard input."
