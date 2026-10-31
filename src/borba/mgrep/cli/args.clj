@@ -12,7 +12,8 @@
    "--where" :where
    "-w"      :where
    "--case"  :case-mode
-   "--emit"  :emit})
+   "--emit"  :emit
+   "--count-by" :count-by})
 
 (def ^:private help-flags #{"--help" "-h"})
 
@@ -29,7 +30,12 @@
   #"^(--[^=]+)=(.*)$")
 
 (def ^:private initial-state
-  {:source nil :pattern nil :case-mode nil :where [] :emit nil})
+  {:source nil
+   :pattern nil
+   :case-mode nil
+   :where []
+   :emit nil
+   :count-by nil})
 
 (defn- option-like?
   [arg]
@@ -131,8 +137,8 @@
   - argv: sequence of argument strings, without the program name
 
   Returns {:help true} or {:version true} when those flags appear anywhere,
-  otherwise {:source s :pattern p :case-mode m :where [w ...] :emit f}, or
-  error data describing the first usage problem."
+  otherwise {:source s :pattern p :case-mode m :where [w ...] :emit f
+  :count-by g}, or error data describing the first usage problem."
   [argv]
   (cond
     (some help-flags argv)    {:help true}

@@ -5,7 +5,8 @@
    [clojure.test :refer [deftest is testing]]))
 
 (def ^:private defaults
-  {:source nil :pattern nil :case-mode nil :where [] :emit nil})
+  {:source nil :pattern nil :case-mode nil :where [] :emit nil
+   :count-by nil})
 
 (defn- error-type
   [result]
@@ -41,6 +42,12 @@
   (is (= :text
          (:emit (args/parse-args ["--match" "E" "--emit=text"])))))
 
+(deftest parse-args-reads-the-count-by-group
+  (is (= "code"
+         (:count-by (args/parse-args ["--match" "E" "--count-by" "code"]))))
+  (is (= "code"
+         (:count-by (args/parse-args ["--match" "E" "--count-by=code"])))))
+
 (deftest parse-args-reads-the-case-mode
   (is (= :sensitive
          (:case-mode (args/parse-args ["--match" "e" "--case" "sensitive"]))))
@@ -64,6 +71,8 @@
           [["missing match" ["app.log"] :args/missing-pattern]
            ["unknown option" ["--match" "E" "--bogus"] :args/unknown-option]
            ["option without value" ["--match"] :args/missing-value]
+           ["count-by without value" ["--match" "E" "--count-by"]
+            :args/missing-value]
            ["invalid case value" ["--match" "E" "--case" "x"]
             :args/invalid-value]
            ["invalid emit value" ["--match" "E" "--emit" "xml"]
