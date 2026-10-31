@@ -1,4 +1,4 @@
-{:paths ["src" "test"]
+{:paths ["src" "test" "scripts"]
 
  :tasks
  {mgrep
@@ -13,20 +13,44 @@
            ((resolve 'borba.mgrep.test-runner/run) {}))}
 
   lint
-  {:doc  "Lint sources and tests with clj-kondo"
-   :task (shell "clj-kondo --lint src test")}
+  {:doc  "Lint sources, tests and scripts with clj-kondo"
+   :task (shell "clj-kondo --lint src test scripts")}
 
   fmt
   {:doc  "Check formatting with cljfmt"
-   :task (shell "cljfmt check")}
+   :task (shell "cljfmt check src test scripts")}
 
   fmt-fix
   {:doc  "Fix formatting with cljfmt"
-   :task (shell "cljfmt fix")}
+   :task (shell "cljfmt fix src test scripts")}
 
   check
   {:doc  "Run lint, format check and tests, in this order"
    :task (do
            (run 'lint)
            (run 'fmt)
-           (run 'test))}}}
+           (run 'test))}
+
+  build
+  {:doc      "Build the native executable (needs GraalVM native-image)"
+   :requires ([build])
+   :task     (build/-main)}
+
+  smoke
+  {:doc      "Exercise the built executable"
+   :requires ([smoke])
+   :task     (smoke/-main)}
+
+  package
+  {:doc      "Archive the built executable with its install scripts"
+   :requires ([package])
+   :task     (package/-main)}
+
+  verify-version
+  {:doc      "Fail unless the given tag equals the declared version"
+   :requires ([borba.mgrep.shared.constants :as constants])
+   :task     (let [tag (first *command-line-args*)]
+               (when-not (= tag constants/version)
+                 (println "Tag" (pr-str tag) "does not match version"
+                          (pr-str constants/version))
+                 (System/exit 1)))}}}
