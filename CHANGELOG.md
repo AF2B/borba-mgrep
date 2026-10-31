@@ -7,6 +7,11 @@ Releases are numbered `v1`, `v2`, `v3`, and so on.
 
 ## Unreleased
 
+### Added
+
+- `--emit json` prints one JSON object per match, with the line number, the
+  text and the named groups. The default stays `--emit text`.
+
 ## v1
 
 ### Added
