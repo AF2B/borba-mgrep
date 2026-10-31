@@ -25,3 +25,23 @@
   (case format-name
     :text (get-in context [:match/line :line/content])
     :json (json/encode (match->json-entry context))))
+
+(defn- count-width
+  [entries]
+  (reduce max 0 (map (comp count str :count) entries)))
+
+(defn render-counts
+  "Renders ranked counts, one line per value.
+
+  - format-name: :text prints the count, right-aligned, then the value;
+    :json prints an object with the value and its count
+  - entries: seq of {:value v :count n}, already in display order
+
+  Returns a seq of lines, without trailing newlines."
+  [format-name entries]
+  (case format-name
+    :text (let [line-pattern (str "%" (count-width entries) "d %s")]
+            (map #(format line-pattern (:count %) (:value %)) entries))
+    :json (map #(json/encode (array-map "value" (:value %)
+                                        "count" (:count %)))
+               entries)))
