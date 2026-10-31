@@ -1,7 +1,12 @@
 {:paths ["src" "test"]
 
  :tasks
- {test
+ {mgrep
+  {:doc  "Run mgrep from source: bb mgrep ARGS"
+   :task (apply (requiring-resolve 'borba.mgrep.main/-main)
+                *command-line-args*)}
+
+  test
   {:doc  "Run the test suite"
    :task (do
            (require 'borba.mgrep.test-runner)
