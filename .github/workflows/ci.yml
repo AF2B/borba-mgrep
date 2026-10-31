@@ -27,3 +27,8 @@ jobs:
 
       - name: Tests through the Clojure CLI
         run: make test-clj
+
+  build:
+    name: build
+    needs: check
+    uses: ./.github/workflows/build.yml

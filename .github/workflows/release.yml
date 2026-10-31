@@ -1,0 +1,71 @@
+name: Release
+
+# Pushing a tag such as v1 builds the executables and publishes them, with the
+# matching CHANGELOG section as release notes.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: DeLaGuardo/setup-clojure@13.7.0
+        with:
+          bb: latest
+
+      - name: Tag must match the declared version
+        run: bb verify-version "$GITHUB_REF_NAME"
+
+      - name: CHANGELOG must describe the release
+        run: |
+          notes=$(awk -v tag="## $GITHUB_REF_NAME" '
+            $0 == tag { found = 1; next }
+            /^## / && found { exit }
+            found { print }
+          ' CHANGELOG.md)
+          if [ -z "$(echo "$notes" | tr -d '[:space:]')" ]; then
+            echo "CHANGELOG.md has no entries under '## $GITHUB_REF_NAME'"
+            exit 1
+          fi
+
+  build:
+    name: build
+    needs: verify
+    uses: ./.github/workflows/build.yml
+
+  publish:
+    name: publish
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          awk -v tag="## $GITHUB_REF_NAME" '
+            $0 == tag { found = 1; next }
+            /^## / && found { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            dist/*
