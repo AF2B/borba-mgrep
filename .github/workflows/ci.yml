@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: DeLaGuardo/setup-clojure@13.7.0
+        with:
+          cli: latest
+          bb: latest
+          clj-kondo: latest
+          cljfmt: latest
+
+      - name: Lint, format check and tests
+        run: bb check
+
+      - name: Tests through the Clojure CLI
+        run: clojure -X:test
