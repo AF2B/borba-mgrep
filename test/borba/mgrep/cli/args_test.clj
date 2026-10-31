@@ -4,26 +4,29 @@
    [borba.mgrep.shared.errors :as errors]
    [clojure.test :refer [deftest is testing]]))
 
+(def ^:private defaults
+  {:source nil :pattern nil :case-mode nil :where [] :emit nil})
+
 (defn- error-type
   [result]
   (get-in result [:error :type]))
 
 (deftest parse-args-reads-source-and-match
-  (is (= {:source "app.log" :pattern "ERROR" :case-mode nil :where []}
+  (is (= (merge defaults {:source "app.log" :pattern "ERROR"})
          (args/parse-args ["app.log" "--match" "ERROR"])))
-  (is (= {:source "app.log" :pattern "ERROR" :case-mode nil :where []}
+  (is (= (merge defaults {:source "app.log" :pattern "ERROR"})
          (args/parse-args ["--match" "ERROR" "app.log"]))))
 
 (deftest parse-args-defaults-to-stdin
-  (is (= {:source nil :pattern "ERROR" :case-mode nil :where []}
+  (is (= (merge defaults {:source nil :pattern "ERROR"})
          (args/parse-args ["--match" "ERROR"])))
-  (is (= {:source "-" :pattern "ERROR" :case-mode nil :where []}
+  (is (= (merge defaults {:source "-" :pattern "ERROR"})
          (args/parse-args ["-" "--match" "ERROR"]))))
 
 (deftest parse-args-accepts-short-options-and-inline-values
-  (is (= {:source nil :pattern "ERROR" :case-mode nil :where ["a > 1"]}
+  (is (= (merge defaults {:source nil :pattern "ERROR" :where ["a > 1"]})
          (args/parse-args ["-m" "ERROR" "-w" "a > 1"])))
-  (is (= {:source nil :pattern "ERROR" :case-mode :sensitive :where []}
+  (is (= (merge defaults {:source nil :pattern "ERROR" :case-mode :sensitive})
          (args/parse-args ["--match=ERROR" "--case=sensitive"]))))
 
 (deftest parse-args-collects-repeated-where-clauses-in-order
@@ -32,14 +35,21 @@
                                    "--where" "line.length > 1"
                                    "--where" "line.contains(\"x\")"])))))
 
+(deftest parse-args-reads-the-output-format
+  (is (= :json
+         (:emit (args/parse-args ["--match" "E" "--emit" "json"]))))
+  (is (= :text
+         (:emit (args/parse-args ["--match" "E" "--emit=text"])))))
+
 (deftest parse-args-reads-the-case-mode
   (is (= :sensitive
          (:case-mode (args/parse-args ["--match" "e" "--case" "sensitive"]))))
   (is (= :insensitive
-         (:case-mode (args/parse-args ["--match" "e" "--case" "insensitive"])))))
+         (:case-mode
+          (args/parse-args ["--match" "e" "--case" "insensitive"])))))
 
 (deftest parse-args-treats-everything-after-double-dash-as-the-source
-  (is (= {:source "-weird.log" :pattern "E" :case-mode nil :where []}
+  (is (= (merge defaults {:source "-weird.log" :pattern "E"})
          (args/parse-args ["--match" "E" "--" "-weird.log"]))))
 
 (deftest parse-args-recognizes-help-and-version
@@ -55,6 +65,8 @@
            ["unknown option" ["--match" "E" "--bogus"] :args/unknown-option]
            ["option without value" ["--match"] :args/missing-value]
            ["invalid case value" ["--match" "E" "--case" "x"]
+            :args/invalid-value]
+           ["invalid emit value" ["--match" "E" "--emit" "xml"]
             :args/invalid-value]
            ["two sources" ["a.log" "b.log" "--match" "E"]
             :args/unexpected-argument]]]

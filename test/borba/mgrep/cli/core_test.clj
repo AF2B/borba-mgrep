@@ -83,6 +83,24 @@
       (finally
         (System/setIn original)))))
 
+(deftest run-emits-json-lines-with-the-captured-groups
+  (with-log sample-log
+    (fn [path]
+      (let [{:keys [code out]} (run [path
+                                     "--match" "/status=(?<code>\\d+)/"
+                                     "--where" "group(\"code\") >= 500"
+                                     "--emit" "json"])]
+        (is (= 0 code))
+        (is (= (str "{\"line\":2,"
+                    "\"content\":\"ERROR status=503 upstream timeout\","
+                    "\"groups\":{\"code\":\"503\"}}\n")
+               out))))))
+
+(deftest run-rejects-an-unknown-emit-format
+  (let [{:keys [code err]} (run ["app.log" "--match" "E" "--emit" "xml"])]
+    (is (= 2 code))
+    (is (str/includes? err "invalid value for --emit: xml"))))
+
 (deftest run-reports-a-missing-file
   (let [{:keys [code out err]} (run ["/nonexistent/x.log" "--match" "E"])]
     (is (= 2 code))

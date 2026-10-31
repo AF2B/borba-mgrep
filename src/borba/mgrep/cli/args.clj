@@ -1,6 +1,7 @@
 (ns borba.mgrep.cli.args
   "Command-line parsing, written by hand to keep the project dependency free."
   (:require
+   [borba.mgrep.business.format.core :as format]
    [borba.mgrep.shared.errors :as errors]
    [clojure.string :as str]))
 
@@ -10,7 +11,8 @@
    "-m"      :pattern
    "--where" :where
    "-w"      :where
-   "--case"  :case-mode})
+   "--case"  :case-mode
+   "--emit"  :emit})
 
 (def ^:private help-flags #{"--help" "-h"})
 
@@ -27,7 +29,7 @@
   #"^(--[^=]+)=(.*)$")
 
 (def ^:private initial-state
-  {:source nil :pattern nil :case-mode nil :where []})
+  {:source nil :pattern nil :case-mode nil :where [] :emit nil})
 
 (defn- option-like?
   [arg]
@@ -39,17 +41,25 @@
     [option value]
     [arg nil]))
 
+(defn- invalid-value
+  [option value expected]
+  (errors/error :args/invalid-value
+                (str "invalid value for " option ": " value
+                     " (expected " expected ")")
+                {:option option}))
+
 (defn- assign
   "Stores an option value in the parsed state, or returns error data."
   [state option-key option value]
   (case option-key
     :where     (update state :where conj value)
+    :emit      (let [emit-format (keyword value)]
+                 (if (contains? format/formats emit-format)
+                   (assoc state :emit emit-format)
+                   (invalid-value option value "text or json")))
     :case-mode (if-let [mode (get case-modes value)]
                  (assoc state :case-mode mode)
-                 (errors/error :args/invalid-value
-                               (str "invalid value for " option ": " value
-                                    " (expected sensitive or insensitive)")
-                               {:option option}))
+                 (invalid-value option value "sensitive or insensitive"))
     (assoc state option-key value)))
 
 (defn- add-positional
@@ -121,8 +131,8 @@
   - argv: sequence of argument strings, without the program name
 
   Returns {:help true} or {:version true} when those flags appear anywhere,
-  otherwise {:source s :pattern p :case-mode m :where [w ...]}, or error data
-  describing the first usage problem."
+  otherwise {:source s :pattern p :case-mode m :where [w ...] :emit f}, or
+  error data describing the first usage problem."
   [argv]
   (cond
     (some help-flags argv)    {:help true}
