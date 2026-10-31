@@ -1,6 +1,7 @@
 (ns borba.mgrep.cli.core
   "Wires arguments, features and I/O together and decides the exit code."
   (:require
+   [borba.mgrep.business.aggregate.core :as aggregate]
    [borba.mgrep.business.format.core :as format]
    [borba.mgrep.business.pattern.core :as pattern]
    [borba.mgrep.business.pipeline.core :as pipeline]
@@ -10,7 +11,8 @@
    [borba.mgrep.infra.emit :as emit]
    [borba.mgrep.infra.source :as source]
    [borba.mgrep.shared.constants :as constants]
-   [borba.mgrep.shared.errors :as errors])
+   [borba.mgrep.shared.errors :as errors]
+   [clojure.string :as str])
   (:import
    (java.io PrintWriter)))
 
@@ -48,10 +50,53 @@
     (pos? matches) constants/exit-matched
     :else          constants/exit-no-match))
 
+(defn- check-count-group
+  "Returns error data when `--count-by` names a group the pattern lacks."
+  [pattern count-by]
+  (let [available (pattern/declared-groups pattern)]
+    (when (and count-by (not (some #{count-by} available)))
+      (errors/error :args/unknown-group
+                    (str "no named group '" count-by "' in the pattern "
+                         "(available: "
+                         (if (seq available)
+                           (str/join ", " available)
+                           "none")
+                         ")")
+                    {:group count-by}))))
+
+(defn- emit-matches
+  [results emit-format out err]
+  (emit/emit-all! results
+                  (partial format/render-match emit-format)
+                  out
+                  err))
+
+(defn- emit-counts
+  [results count-by emit-format out err]
+  (let [{:keys [state matches errors]}
+        (emit/consume! results
+                       (fn [counts context]
+                         (aggregate/tally counts context count-by))
+                       {}
+                       out
+                       err)]
+    (emit/write-lines! out
+                       (format/render-counts emit-format
+                                             (aggregate/ranked state)))
+    {:matches matches :errors errors}))
+
+(defn- emit-results
+  [results {:keys [emit count-by]} out err]
+  (let [emit-format (or emit default-emit-format)]
+    (if count-by
+      (emit-counts results count-by emit-format out err)
+      (emit-matches results emit-format out err))))
+
 (defn- search
-  [{:keys [source pattern case-mode where emit]} out err]
+  [{:keys [source pattern case-mode where count-by] :as options} out err]
   (let [matcher   (pattern/compile-pattern pattern case-mode)
-        predicate (where/compile-filters where)]
+        predicate (where/compile-filters where)
+        group     (check-count-group pattern count-by)]
     (cond
       (errors/error? matcher)
       (fail matcher err)
@@ -59,17 +104,19 @@
       (errors/error? predicate)
       (fail predicate err)
 
+      group
+      (fail group err)
+
       :else
       (let [summary (source/with-lines
                       source
                       (fn [lines]
-                        (emit/emit-all! (pipeline/matches lines
-                                                          matcher
-                                                          predicate)
-                                        (partial format/render-match
-                                                 (or emit default-emit-format))
-                                        out
-                                        err)))]
+                        (emit-results (pipeline/matches lines
+                                                        matcher
+                                                        predicate)
+                                      options
+                                      out
+                                      err)))]
         (if (errors/error? summary)
           (fail summary err)
           (exit-code summary))))))
