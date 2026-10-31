@@ -22,7 +22,7 @@ jobs:
           bb: latest
 
       - name: Tag must match the declared version
-        run: bb verify-version "$GITHUB_REF_NAME"
+        run: make verify-version TAG="$GITHUB_REF_NAME"
 
       - name: CHANGELOG must describe the release
         run: |
