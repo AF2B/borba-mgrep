@@ -44,7 +44,7 @@ script tells you what to add.
 The general form is:
 
 ```
-mgrep <file> --match <pattern> [--where <expression>]... [--case sensitive|insensitive] [--emit text|json]
+mgrep <file> --match <pattern> [--where <expression>]... [--case sensitive|insensitive] [--emit text|json] [--count-by <group>]
 ```
 
 `--match` is required. Everything in square brackets is optional, and
@@ -164,7 +164,26 @@ mgrep app.log --match '/status=(?<code>\d+)/' --where 'group("code") >= 500' --e
 
 Each line is a complete JSON document, so tools like `jq` read it directly.
 
-### 8. Use it in scripts
+### 8. Count by a value
+
+Add `--count-by` and the name of a regex group. Instead of the lines, you get
+how many matches there are for each value of that group, most frequent first:
+
+```bash
+mgrep app.log --match '/(?<level>INFO|WARN|ERROR)/' --count-by level
+```
+
+```
+3 ERROR
+2 INFO
+1 WARN
+```
+
+Filters still apply, so `--where` decides what gets counted. Matches where
+the group did not take part are counted under `(none)`. Combine it with
+`--emit json` to get `{"value":"ERROR","count":3}` lines.
+
+### 9. Use it in scripts
 
 The exit code says what happened: `0` matched, `1` nothing matched, `2` error.
 

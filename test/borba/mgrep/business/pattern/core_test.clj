@@ -36,3 +36,11 @@
   (let [result (pattern/compile-pattern "/(/" nil)]
     (is (errors/error? result))
     (is (= :pattern/invalid-regex (get-in result [:error :type])))))
+
+(deftest declared-groups-lists-the-named-groups-of-a-regex
+  (is (= ["code" "id"]
+         (pattern/declared-groups "/a(?<code>\\d)b(?<id>x)/")))
+  (testing "a regex without named groups"
+    (is (= [] (pattern/declared-groups "/plain(a|b)/"))))
+  (testing "plain text never has groups, even if it looks like one"
+    (is (= [] (pattern/declared-groups "(?<code>x)")))))

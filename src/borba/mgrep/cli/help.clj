@@ -17,6 +17,8 @@ Options:
                        regexes respect it.
       --emit FORMAT    text (default) prints the lines. json prints one object
                        per match with its line number and named groups.
+      --count-by NAME  Instead of the lines, print how many matches there are
+                       for each value of the named regex group NAME.
   -h, --help           Show this help.
       --version        Show the version.
 

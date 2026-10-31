@@ -55,3 +55,14 @@
                              (case-sensitive?
                               case-mode
                               literal-case-sensitive-by-default?))))
+
+(defn declared-groups
+  "Lists the named capture groups a pattern can produce.
+
+  - pattern: plain text, or a regex wrapped in slashes
+
+  Returns a vector of group names in declaration order; plain text has none."
+  [pattern]
+  (if (regex-pattern? pattern)
+    (regex/group-names (regex-body pattern))
+    []))

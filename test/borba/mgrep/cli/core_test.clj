@@ -101,6 +101,80 @@
     (is (= 2 code))
     (is (str/includes? err "invalid value for --emit: xml"))))
 
+(def ^:private status-log
+  (str "INFO boot\n"
+       "ERROR status=503 a\n"
+       "ERROR status=404 b\n"
+       "ERROR status=503 c\n"
+       "WARN status=503 d\n"
+       "ERROR no code here\n"))
+
+(def ^:private status-pattern "/status=(?<code>\\d+)/")
+
+(deftest run-counts-matches-by-group-value
+  (with-log status-log
+    (fn [path]
+      (let [{:keys [code out]} (run [path
+                                     "--match" status-pattern
+                                     "--count-by" "code"])]
+        (is (= 0 code))
+        (is (= "3 503\n1 404\n" out))))))
+
+(deftest run-counts-only-the-matches-that-pass-the-filters
+  (with-log status-log
+    (fn [path]
+      (let [{:keys [out]} (run [path
+                                "--match" status-pattern
+                                "--where" "line.contains(\"ERROR\")"
+                                "--count-by" "code"])]
+        (is (= "2 503\n1 404\n" out))))))
+
+(deftest run-counts-in-json
+  (with-log status-log
+    (fn [path]
+      (let [{:keys [out]} (run [path
+                                "--match" status-pattern
+                                "--count-by" "code"
+                                "--emit" "json"])]
+        (is (= (str "{\"value\":\"503\",\"count\":3}\n"
+                    "{\"value\":\"404\",\"count\":1}\n")
+               out))))))
+
+(deftest run-labels-matches-where-the-group-did-not-take-part
+  (with-log "x1\nx\n"
+    (fn [path]
+      (let [{:keys [out]} (run [path
+                                "--match" "/x(?<id>\\d+)?/"
+                                "--count-by" "id"])]
+        (is (= "1 (none)\n1 1\n" out))))))
+
+(deftest run-prints-nothing-and-exits-one-when-no-match-is-counted
+  (with-log status-log
+    (fn [path]
+      (let [{:keys [code out]} (run [path
+                                     "--match" status-pattern
+                                     "--where" "line.contains(\"FATAL\")"
+                                     "--count-by" "code"])]
+        (is (= 1 code))
+        (is (= "" out))))))
+
+(deftest run-rejects-a-group-the-pattern-does-not-declare
+  (testing "regex with other groups"
+    (let [{:keys [code out err]} (run ["/nonexistent/x.log"
+                                       "--match" status-pattern
+                                       "--count-by" "cde"])]
+      (is (= 2 code))
+      (is (= "" out))
+      (is (str/includes?
+           err
+           "no named group 'cde' in the pattern (available: code)"))))
+  (testing "plain text has no groups"
+    (let [{:keys [code err]} (run ["/nonexistent/x.log"
+                                   "--match" "ERROR"
+                                   "--count-by" "code"])]
+      (is (= 2 code))
+      (is (str/includes? err "(available: none)")))))
+
 (deftest run-reports-a-missing-file
   (let [{:keys [code out err]} (run ["/nonexistent/x.log" "--match" "E"])]
     (is (= 2 code))

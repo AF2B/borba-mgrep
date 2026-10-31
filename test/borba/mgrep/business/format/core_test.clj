@@ -43,3 +43,21 @@
                      (assoc-in context
                                [:match/line :line/content]
                                "say \"hi\"")))))))
+
+(def ^:private entries
+  [{:value "503" :count 12}
+   {:value "404" :count 3}])
+
+(deftest render-counts-text-aligns-the-counts
+  (is (= ["12 503"
+          " 3 404"]
+         (format/render-counts :text entries))))
+
+(deftest render-counts-json-writes-one-object-per-value
+  (is (= ["{\"value\":\"503\",\"count\":12}"
+          "{\"value\":\"404\",\"count\":3}"]
+         (format/render-counts :json entries))))
+
+(deftest render-counts-of-nothing-is-empty
+  (is (= [] (vec (format/render-counts :text []))))
+  (is (= [] (vec (format/render-counts :json [])))))
