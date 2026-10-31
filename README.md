@@ -44,7 +44,7 @@ script tells you what to add.
 The general form is:
 
 ```
-mgrep <file> --match <pattern> [--where <expression>]... [--case sensitive|insensitive]
+mgrep <file> --match <pattern> [--where <expression>]... [--case sensitive|insensitive] [--emit text|json] [--count-by <group>]
 ```
 
 `--match` is required. Everything in square brackets is optional, and
@@ -148,7 +148,42 @@ cat app.log | mgrep --match WARN
 tail -f app.log | mgrep --match ERROR
 ```
 
-### 7. Use it in scripts
+### 7. Get JSON for other tools
+
+Add `--emit json` to print one JSON object per match, with the line number,
+the text and the groups you named:
+
+```bash
+mgrep app.log --match '/status=(?<code>\d+)/' --where 'group("code") >= 500' --emit json
+```
+
+```
+{"line":3,"content":"2026-10-31 10:00:09 ERROR status=503 upstream timeout","groups":{"code":"503"}}
+{"line":6,"content":"2026-10-31 10:00:21 ERROR status=500 db connection lost","groups":{"code":"500"}}
+```
+
+Each line is a complete JSON document, so tools like `jq` read it directly.
+
+### 8. Count by a value
+
+Add `--count-by` and the name of a regex group. Instead of the lines, you get
+how many matches there are for each value of that group, most frequent first:
+
+```bash
+mgrep app.log --match '/(?<level>INFO|WARN|ERROR)/' --count-by level
+```
+
+```
+3 ERROR
+2 INFO
+1 WARN
+```
+
+Filters still apply, so `--where` decides what gets counted. Matches where
+the group did not take part are counted under `(none)`. Combine it with
+`--emit json` to get `{"value":"ERROR","count":3}` lines.
+
+### 9. Use it in scripts
 
 The exit code says what happened: `0` matched, `1` nothing matched, `2` error.
 

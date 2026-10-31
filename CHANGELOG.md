@@ -7,6 +7,14 @@ Releases are numbered `v1`, `v2`, `v3`, and so on.
 
 ## Unreleased
 
+### Added
+
+- `--emit json` prints one JSON object per match, with the line number, the
+  text and the named groups. The default stays `--emit text`.
+- `--count-by NAME` prints how many matches there are for each value of a
+  named regex group, most frequent first. It works with `--where` and
+  `--emit json`.
+
 ## v1
 
 ### Added
