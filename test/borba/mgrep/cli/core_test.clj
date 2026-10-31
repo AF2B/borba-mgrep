@@ -1,6 +1,7 @@
 (ns borba.mgrep.cli.core-test
   (:require
    [borba.mgrep.cli.core :as cli]
+   [borba.mgrep.shared.constants :as constants]
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]])
   (:import
@@ -216,4 +217,4 @@
     (is (str/includes? out "Usage: mgrep")))
   (let [{:keys [code out]} (run ["--version"])]
     (is (= 0 code))
-    (is (= "v1\n" out))))
+    (is (= (str constants/version "\n") out))))

@@ -7,6 +7,8 @@ Releases are numbered `v1`, `v2`, `v3`, and so on.
 
 ## Unreleased
 
+## v2
+
 ### Added
 
 - `--emit json` prints one JSON object per match, with the line number, the
