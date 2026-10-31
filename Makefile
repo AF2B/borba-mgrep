@@ -6,10 +6,14 @@
 # Arguments for `make run`, e.g. make run ARGS="app.log --match ERROR"
 ARGS ?=
 
+# Tag checked by `make verify-version`, e.g. make verify-version TAG=v1
+TAG ?=
+
 # Version declared in the source; releases are tagged with this value.
 VERSION = $(shell bb -e "(require '[borba.mgrep.shared.constants :as c]) (print c/version)")
 
-.PHONY: help run test test-clj lint fmt fmt-fix check clean release
+.PHONY: help run test test-clj lint fmt fmt-fix check build smoke package \
+        clean verify-version release
 
 help: ## List the available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / \
@@ -36,8 +40,20 @@ fmt-fix: ## Fix formatting with cljfmt
 check: ## Run lint, format check and tests, in this order
 	@bb check
 
+build: ## Build the native executable (needs GraalVM native-image)
+	@bb build
+
+smoke: ## Exercise the built executable
+	@bb smoke
+
+package: ## Archive the built executable with its install scripts
+	@bb package
+
 clean: ## Remove build output
 	@rm -rf target dist
+
+verify-version: ## Fail unless TAG equals the declared version: make verify-version TAG=v1
+	@bb verify-version $(TAG)
 
 release: check ## Tag the declared version on main and push the tag, which publishes it
 	@test "$$(git branch --show-current)" = main \
