@@ -95,15 +95,19 @@ number, so `group("code") >= 500` works.
 
 ## Develop
 
-Needs [Babashka](https://babashka.org) and the
-[Clojure CLI](https://clojure.org/guides/install_clojure). The project has no
-other dependencies.
+Every command lives in the `Makefile`. Run `make` to list them.
+
+Needs [Babashka](https://babashka.org), the
+[Clojure CLI](https://clojure.org/guides/install_clojure) and `make`. The
+project has no other dependencies.
 
 ```bash
-bb mgrep app.log --match ERROR   # run from source
-bb test                          # tests
-bb check                         # lint, format check, tests
-bb build                         # native executable (needs GraalVM)
+make                                    # list every command
+make run ARGS="app.log --match ERROR"   # run from source
+make test                               # tests
+make check                              # lint, format check, tests
+make build                              # native executable (needs GraalVM)
+make release                            # tag and publish the declared version
 ```
 
 Source layout:
@@ -117,8 +121,8 @@ src/borba/mgrep/
 ```
 
 Releases are numbered `v1`, `v2`, `v3`, and listed in the
-[changelog](CHANGELOG.md). Pushing a tag such as `v1` builds and publishes the
-executables.
+[changelog](CHANGELOG.md). `make release` pushes the tag, and the tag builds
+and publishes the executables.
 
 ## License
 
