@@ -1,0 +1,93 @@
+name: Build
+
+# Reusable: builds the native executable on Linux and Windows, smoke tests it,
+# packages it with its install scripts and proves install and uninstall work.
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: package (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            os: ubuntu-latest
+          - platform: windows
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: graalvm-community
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          native-image-job-reports: 'true'
+
+      - uses: DeLaGuardo/setup-clojure@13.7.0
+        with:
+          bb: latest
+
+      - name: Build the native executable
+        shell: bash
+        run: bb build
+
+      - name: Smoke test the executable
+        shell: bash
+        run: bb smoke
+
+      - name: Package
+        shell: bash
+        run: bb package
+
+      - name: Install, run and uninstall (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -eu
+          work="$RUNNER_TEMP/install-test"
+          mkdir -p "$work"
+          tar -xzf dist/*.tar.gz -C "$work"
+          package_dir=$(echo "$work"/borba-mgrep-*)
+          export MGREP_PREFIX="$work/prefix"
+
+          "$package_dir/install.sh"
+          "$MGREP_PREFIX/bin/mgrep" --version
+          echo "ERROR piped" | "$MGREP_PREFIX/bin/mgrep" --match error
+
+          "$package_dir/uninstall.sh"
+          test ! -e "$MGREP_PREFIX/bin/mgrep"
+
+      - name: Install, run and uninstall (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $work = Join-Path $env:RUNNER_TEMP 'install-test'
+          New-Item -ItemType Directory -Force -Path $work | Out-Null
+          Expand-Archive -Path (Get-ChildItem dist\*.zip).FullName -DestinationPath $work
+          $packageDir = (Get-ChildItem -Directory $work | Select-Object -First 1).FullName
+          $env:MGREP_DIR = Join-Path $work 'installed'
+          $env:MGREP_SKIP_PATH = '1'
+
+          & "$packageDir\install.ps1"
+          & "$env:MGREP_DIR\mgrep.exe" --version
+          'ERROR piped' | & "$env:MGREP_DIR\mgrep.exe" --match error
+
+          & "$packageDir\uninstall.ps1"
+          if (Test-Path "$env:MGREP_DIR\mgrep.exe") { throw 'mgrep.exe was not removed' }
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: borba-mgrep-${{ matrix.platform }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+          if-no-files-found: error
