@@ -1,0 +1,22 @@
+# Clojure tooling
+.cpcache/
+.clj-kondo/.cache/
+.lsp/
+.calva/
+.nrepl-port
+.portal/
+
+# Build output
+target/
+dist/
+classes/
+*.jar
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+
+# Secrets
+.env
+.env.*
