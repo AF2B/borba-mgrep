@@ -39,23 +39,156 @@ cd borba-mgrep-<version>-linux-x64
 It installs to `~/.local/bin`. If that folder is not on your `PATH`, the
 script tells you what to add.
 
-## Use
+## Examples
+
+The general form is:
+
+```
+mgrep <file> --match <pattern> [--where <expression>]... [--case sensitive|insensitive]
+```
+
+`--match` is required. Everything in square brackets is optional, and
+`--where` can be repeated. Leave out `<file>` to read from a pipe.
+
+Create a small log to try the commands below:
 
 ```bash
-# Lines containing "error", ignoring case
-mgrep app.log --match error
-
-# Only lines longer than 120 characters
-mgrep app.log --match ERROR --where 'line.length > 120'
-
-# Several --where clauses: all of them must hold
-mgrep app.log --match ERROR \
-  --where 'line.contains("timeout")' \
-  --where 'line.number > 100'
-
-# Read from a pipe
-tail -f app.log | mgrep --match WARN
+cat > app.log <<'EOF'
+2026-10-31 10:00:01 INFO  server started port=8080
+2026-10-31 10:00:05 WARN  slow query took=1200ms
+2026-10-31 10:00:09 ERROR status=503 upstream timeout
+2026-10-31 10:00:12 INFO  GET /health status=200
+2026-10-31 10:00:15 ERROR status=404 route not found
+2026-10-31 10:00:21 ERROR status=500 db connection lost
+EOF
 ```
+
+### 1. Find a word
+
+```bash
+mgrep app.log --match error
+```
+
+```
+2026-10-31 10:00:09 ERROR status=503 upstream timeout
+2026-10-31 10:00:15 ERROR status=404 route not found
+2026-10-31 10:00:21 ERROR status=500 db connection lost
+```
+
+Plain text ignores case, so `error` found `ERROR`. Add `--case sensitive`
+to make it exact.
+
+### 2. Find a regex
+
+Write it between slashes:
+
+```bash
+mgrep app.log --match '/status=5\d\d/'
+```
+
+```
+2026-10-31 10:00:09 ERROR status=503 upstream timeout
+2026-10-31 10:00:21 ERROR status=500 db connection lost
+```
+
+### 3. Keep only some matches with `--where`
+
+`--where` runs on each line that matched.
+
+```bash
+# Only the lines after line 4
+mgrep app.log --match ERROR --where 'line.number > 4'
+
+# Only the lines that end with "lost"
+mgrep app.log --match ERROR --where 'line.endswith("lost")'
+
+# Either word
+mgrep app.log --match ERROR \
+  --where 'line.contains("timeout") or line.contains("lost")'
+
+# Everything except INFO (an empty --match matches every line)
+mgrep app.log --match '' --where 'not line.contains("INFO")'
+```
+
+### 4. Use a number from the line
+
+Name a group in the regex, then read it with `group("name")`:
+
+```bash
+mgrep app.log --match '/status=(?<code>\d+)/' --where 'group("code") >= 500'
+```
+
+```
+2026-10-31 10:00:09 ERROR status=503 upstream timeout
+2026-10-31 10:00:21 ERROR status=500 db connection lost
+```
+
+`code` is text, but it looks like a number, so `>= 500` compares it as one.
+
+### 5. Combine several filters
+
+Repeat `--where`. Every clause must hold:
+
+```bash
+mgrep app.log --match ERROR \
+  --where 'line.number > 3' \
+  --where 'line.contains("not found")'
+```
+
+```
+2026-10-31 10:00:15 ERROR status=404 route not found
+```
+
+### 6. Read from a pipe
+
+Leave out the file name:
+
+```bash
+cat app.log | mgrep --match WARN
+tail -f app.log | mgrep --match ERROR
+```
+
+### 7. Use it in scripts
+
+The exit code says what happened: `0` matched, `1` nothing matched, `2` error.
+
+```bash
+# Count the errors
+mgrep app.log --match ERROR | wc -l
+
+# Act when something is found
+mgrep app.log --match FATAL || echo "no fatal errors"
+```
+
+### On Windows
+
+`cmd` and PowerShell treat quotes differently from Linux shells. Wrap the
+whole expression in double quotes and use single quotes inside it:
+
+```powershell
+mgrep app.log --match "/status=(?<code>\d+)/" --where "group('code') >= 500"
+mgrep app.log --match ERROR --where "line.contains('timeout')"
+```
+
+### When something goes wrong
+
+Errors go to stderr and the exit code is `2`:
+
+```
+$ mgrep app.log
+mgrep: missing --match PATTERN
+Try 'mgrep --help' for usage.
+
+$ mgrep app.log --match ERROR --where 'line.size > 1'
+mgrep: unknown attribute line.size at position 5
+
+$ mgrep missing.log --match ERROR
+mgrep: no such file: missing.log
+```
+
+Run `mgrep --help` to see every option.
+
+## Reference
 
 ### Patterns
 
