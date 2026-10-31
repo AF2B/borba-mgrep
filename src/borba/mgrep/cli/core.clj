@@ -1,6 +1,7 @@
 (ns borba.mgrep.cli.core
   "Wires arguments, features and I/O together and decides the exit code."
   (:require
+   [borba.mgrep.business.format.core :as format]
    [borba.mgrep.business.pattern.core :as pattern]
    [borba.mgrep.business.pipeline.core :as pipeline]
    [borba.mgrep.business.where.core :as where]
@@ -14,6 +15,8 @@
    (java.io PrintWriter)))
 
 (set! *warn-on-reflection* true)
+
+(def ^:private default-emit-format :text)
 
 (def ^:private usage-hint
   (str "Try '" constants/program-name " --help' for usage."))
@@ -46,7 +49,7 @@
     :else          constants/exit-no-match))
 
 (defn- search
-  [{:keys [source pattern case-mode where]} out err]
+  [{:keys [source pattern case-mode where emit]} out err]
   (let [matcher   (pattern/compile-pattern pattern case-mode)
         predicate (where/compile-filters where)]
     (cond
@@ -63,6 +66,8 @@
                         (emit/emit-all! (pipeline/matches lines
                                                           matcher
                                                           predicate)
+                                        (partial format/render-match
+                                                 (or emit default-emit-format))
                                         out
                                         err)))]
         (if (errors/error? summary)

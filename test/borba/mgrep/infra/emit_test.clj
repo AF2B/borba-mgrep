@@ -13,11 +13,16 @@
   {:match/line {:line/number number :line/content content}
    :match/groups {}})
 
+(defn- render-content
+  [context]
+  (get-in context [:match/line :line/content]))
+
 (defn- capture
   [results]
   (let [out-buffer (StringWriter.)
         err-buffer (StringWriter.)
         summary    (emit/emit-all! results
+                                   render-content
                                    (PrintWriter. out-buffer)
                                    (PrintWriter. err-buffer))]
     {:summary summary
@@ -56,3 +61,31 @@
          (emit/format-error (errors/error :args/invalid "bad"))))
   (is (= "mgrep: line 9: bad"
          (emit/format-error (errors/error :x/y "bad" {:line 9})))))
+
+(deftest emit-all-prints-what-the-renderer-returns
+  (let [out-buffer (StringWriter.)
+        _          (emit/emit-all! [(match 1 "a") (match 2 "b")]
+                                   #(str "line " (get-in % [:match/line
+                                                            :line/number]))
+                                   (PrintWriter. out-buffer)
+                                   (PrintWriter. (StringWriter.)))]
+    (is (= "line 1\nline 2\n" (str out-buffer)))))
+
+(deftest consume-folds-matches-into-a-state-and-reports-failures
+  (let [err-buffer (StringWriter.)
+        failure    (errors/error :where/eval-error "boom" {:line 2})
+        result     (emit/consume! [(match 1 "a") failure (match 3 "b")]
+                                  (fn [state context]
+                                    (conj state (render-content context)))
+                                  []
+                                  (PrintWriter. (StringWriter.))
+                                  (PrintWriter. err-buffer))]
+    (is (= {:state ["a" "b"] :matches 2 :errors 1} result))
+    (is (= "mgrep: line 2: boom\n" (str err-buffer)))))
+
+(deftest write-lines-prints-each-line-with-a-newline
+  (let [out-buffer (StringWriter.)
+        out        (PrintWriter. out-buffer)]
+    (emit/write-lines! out ["one" "two"])
+    (.flush out)
+    (is (= "one\ntwo\n" (str out-buffer)))))
