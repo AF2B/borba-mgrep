@@ -23,10 +23,10 @@ jobs:
           cljfmt: latest
 
       - name: Lint, format check and tests
-        run: bb check
+        run: make check
 
       - name: Tests through the Clojure CLI
-        run: clojure -X:test
+        run: make test-clj
 
   build:
     name: build
