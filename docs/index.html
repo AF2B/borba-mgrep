@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>borba-mgrep. Grep that filters what it finds</title>
+<meta name="description" content="Find lines with text or a regex, then keep only the ones that pass a small expression. One native executable for Linux and Windows. Written in Clojure.">
+<meta name="theme-color" content="#000510">
+<meta property="og:title" content="borba-mgrep">
+<meta property="og:description" content="Grep that filters what it finds. Written in Clojure, distributed as a GraalVM native image.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000510'/%3E%3Crect x='3' y='3' width='26' height='26' fill='none' stroke='%23333333' stroke-width='2'/%3E%3Crect x='19' y='20' width='5' height='5' fill='%230074D9'/%3E%3Crect x='7' y='11' width='4' height='14' fill='%23ffffff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  /* Borba Design System tokens */
+  :root {
+    --background: 220 100% 3%;
+    --foreground: 0 0% 100%;
+    --popover: 220 100% 5%;
+    --secondary: 204 13% 60%;
+    --muted: 0 0% 20%;
+    --accent: 208 100% 43%;
+    --destructive: 0 84.2% 60.2%;
+    --border: 0 0% 20%;
+    --radius: 0rem;
+
+    --midnight: hsl(var(--background));
+    --white: hsl(var(--foreground));
+    --grey: hsl(var(--secondary));
+    --blue: hsl(var(--accent));
+    --line: hsl(var(--border));
+    --popover-bg: hsl(var(--popover));
+    --ok: #22C55E;
+    --terminal: #000000;
+
+    --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", "Roboto Mono", ui-monospace, "Cascadia Mono", monospace;
+    --font-serif: "Playfair Display", Georgia, serif;
+
+    --gutter: 16px;
+    --max: 1200px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; border-radius: 0; }
+  * { scrollbar-width: thin; scrollbar-color: hsl(0 0% 20%) transparent; }
+  html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+  body {
+    margin: 0;
+    background: var(--midnight);
+    color: var(--white);
+    font-family: var(--font-sans);
+    font-size: 18px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  img, svg { display: block; max-width: 100%; }
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  ::selection { background: var(--blue); color: var(--white); }
+
+  .skip {
+    position: absolute; left: var(--gutter); top: -100px; z-index: 100;
+    background: var(--white); color: var(--midnight); padding: 8px 16px;
+    font-family: var(--font-mono); font-size: 12px; text-transform: uppercase; letter-spacing: .1em;
+  }
+  .skip:focus { top: 12px; }
+
+  .wrap { width: 100%; max-width: var(--max); margin: 0 auto; padding: 0 var(--gutter); }
+
+  /* Labels */
+  .label {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .2em;
+    color: var(--blue);
+    margin: 0 0 24px;
+  }
+  .label.grey { color: var(--grey); }
+  .mono { font-family: var(--font-mono); font-variant-ligatures: none; }
+
+  /* Header (glass) */
+  .site-header {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(0, 5, 16, .8);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  .site-header .wrap {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 64px; gap: 16px;
+  }
+  .logo {
+    font-weight: 800; font-size: 20px; letter-spacing: -.02em; text-decoration: none;
+    white-space: nowrap;
+  }
+  .logo .dot { color: var(--blue); }
+  .nav { display: flex; align-items: center; gap: 32px; }
+  .nav a.link {
+    font-family: var(--font-mono); font-size: 12px; text-transform: uppercase;
+    letter-spacing: .15em; color: var(--grey); text-decoration: none;
+    transition: color .3s;
+  }
+  .nav a.link:hover { color: var(--white); }
+
+  /* Buttons: instant black/white inversion on hover */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    font-family: var(--font-mono); font-size: 13px; font-weight: 500;
+    text-transform: uppercase; letter-spacing: .1em; text-decoration: none;
+    padding: 14px 24px; border: 1px solid var(--white); cursor: pointer;
+    transition: background-color .3s, color .3s, border-color .3s;
+  }
+  .btn-primary { background: var(--white); color: var(--midnight); }
+  .btn-primary:hover { background: var(--midnight); color: var(--white); }
+  .btn-outline { background: transparent; color: var(--white); border-color: var(--line); }
+  .btn-outline:hover { background: var(--white); color: var(--midnight); border-color: var(--white); }
+  .btn-small { padding: 10px 16px; font-size: 12px; }
+
+  /* Hero */
+  .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); }
+  .grid-bg {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(to right, rgba(0, 116, 217, .12) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0, 116, 217, .12) 1px, transparent 1px);
+    background-size: 64px 64px;
+    animation: grid-pulse 4s ease-in-out infinite;
+  }
+  .blob {
+    position: absolute; width: 420px; height: 420px; background: var(--blue);
+    opacity: .1; filter: blur(90px); pointer-events: none;
+    animation: float 6s ease-in-out infinite;
+  }
+  .blob.one { top: -120px; right: -80px; }
+  .blob.two { bottom: -200px; left: -120px; animation-delay: -3s; }
+  @keyframes grid-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+  @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-24px); } }
+  @keyframes typing-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+  .hero .wrap { position: relative; padding-top: 96px; padding-bottom: 96px; }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 64px; align-items: center; }
+  h1 {
+    font-size: clamp(48px, 8.2vw, 112px);
+    font-weight: 900; letter-spacing: -.045em; line-height: .95; margin: 0 0 32px;
+  }
+  h1 .dot { color: var(--blue); }
+  .lead { font-size: 20px; font-weight: 300; letter-spacing: .01em; color: var(--white); max-width: 34em; margin: 0 0 40px; }
+  .lead strong { font-weight: 600; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 40px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .chip {
+    font-family: var(--font-mono); font-size: 12px; text-transform: uppercase; letter-spacing: .12em;
+    color: var(--grey); border: 1px solid var(--line); padding: 6px 12px;
+  }
+  .chip b { color: var(--blue); font-weight: 500; }
+
+  /* Terminal */
+  .terminal { background: var(--terminal); border: 1px solid var(--line); }
+  .terminal-bar {
+    display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    font-family: var(--font-mono); font-size: 12px; color: var(--grey);
+    text-transform: uppercase; letter-spacing: .15em;
+  }
+  .sq { width: 10px; height: 10px; border: 1px solid var(--line); }
+  .sq.live { background: var(--blue); border-color: var(--blue); }
+  .terminal-bar .title { margin-left: auto; }
+  .terminal pre {
+    margin: 0; padding: 20px; overflow-x: auto;
+    font-family: var(--font-mono); font-size: 14px; line-height: 1.7; font-variant-ligatures: none;
+    color: var(--blue); white-space: pre; min-height: 17.5em;
+  }
+  .terminal .out { color: var(--white); }
+  .terminal .dim { color: var(--grey); }
+  .cursor {
+    display: inline-block; width: .6em; height: 1.1em; background: var(--blue);
+    vertical-align: text-bottom; animation: typing-blink 1s step-end infinite;
+  }
+
+  /* Stats strip */
+  .stats { border-bottom: 1px solid var(--line); }
+  .stats .wrap { padding: 0; }
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+  .stat { padding: 40px var(--gutter); border-right: 1px solid var(--line); }
+  .stat:last-child { border-right: 0; }
+  .stat .num { font-size: clamp(40px, 5vw, 72px); font-weight: 900; letter-spacing: -.04em; line-height: 1; }
+  .stat .num span { color: var(--blue); }
+  .stat p { margin: 12px 0 0; }
+
+  /* Sections */
+  section.block { padding: 112px 0; border-bottom: 1px solid var(--line); }
+  h2 { font-size: clamp(36px, 5.5vw, 72px); font-weight: 700; letter-spacing: -.03em; line-height: 1.02; margin: 0 0 24px; }
+  h2 .dot { color: var(--blue); }
+  .section-lead { color: var(--grey); font-weight: 300; max-width: 38em; margin: 0 0 64px; }
+
+  /* Feature grid */
+  .features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+  .feature {
+    padding: 32px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    transition: background-color .3s, color .3s;
+  }
+  .feature .idx { font-family: var(--font-mono); font-size: 12px; letter-spacing: .2em; color: var(--blue); }
+  .feature h3 { font-size: 30px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; margin: 16px 0 16px; }
+  .feature p { margin: 0 0 20px; color: var(--grey); font-size: 16px; line-height: 1.6; transition: color .3s; }
+  .feature code {
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: .02em;
+    border: 1px solid var(--line); padding: 4px 8px; display: inline-block; color: var(--white);
+  }
+  .feature:hover { background: var(--white); color: var(--midnight); }
+  .feature:hover p { color: hsl(0 0% 20%); }
+  .feature:hover code { color: var(--midnight); border-color: var(--midnight); }
+
+  /* Examples */
+  .examples-head { display: grid; grid-template-columns: 1fr; gap: 24px; margin-bottom: 40px; }
+  .sample { margin-bottom: 64px; }
+  .example-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  .example { border: 1px solid var(--line); background: var(--terminal); min-width: 0; }
+  .example header {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 14px; border-bottom: 1px solid var(--line);
+  }
+  .example header .label { margin: 0; }
+  .example pre {
+    margin: 0; padding: 16px 20px; overflow-x: auto;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+    font-family: var(--font-mono); font-size: 13px; line-height: 1.7; font-variant-ligatures: none;
+    color: var(--blue);
+  }
+  .example pre .out { color: var(--white); }
+  .example pre .dim { color: var(--grey); }
+  .example .note { margin: 0; padding: 14px 20px; border-top: 1px solid var(--line); color: var(--grey); font-size: 15px; }
+  .copy {
+    font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .15em;
+    background: transparent; color: var(--grey); border: 1px solid var(--line); padding: 4px 10px; cursor: pointer;
+    transition: background-color .3s, color .3s, border-color .3s;
+  }
+  .copy:hover { background: var(--white); color: var(--midnight); border-color: var(--white); }
+
+  /* Install */
+  .install-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+  .install-col { padding: 32px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); min-width: 0; }
+  .install-col h3 { font-size: 30px; font-weight: 700; letter-spacing: -.02em; margin: 0 0 24px; }
+  ol.steps { margin: 0 0 24px; padding: 0; list-style: none; counter-reset: step; }
+  ol.steps li {
+    counter-increment: step; position: relative; padding: 0 0 16px 48px; font-size: 16px;
+  }
+  ol.steps li::before {
+    content: counter(step, decimal-leading-zero);
+    position: absolute; left: 0; top: 2px; font-family: var(--font-mono); font-size: 12px;
+    letter-spacing: .1em; color: var(--blue);
+  }
+  ol.steps code, p code, td code, li code.inline {
+    font-family: var(--font-mono); font-size: .85em; border: 1px solid var(--line); padding: 1px 6px;
+  }
+  .install-col .terminal pre { min-height: 0; font-size: 13px; }
+  .fine { color: var(--grey); font-size: 14px; margin: 16px 0 0; }
+
+  /* Reference */
+  .ref-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+  .ref-card { border: 1px solid var(--line); padding: 24px; min-width: 0; }
+  .ref-card h3 { font-family: var(--font-mono); font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: .2em; color: var(--blue); margin: 0 0 20px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td { padding: 10px 0; border-top: 1px solid var(--line); vertical-align: top; }
+  tr:first-child td { border-top: 0; }
+  td:first-child { padding-right: 16px; white-space: nowrap; }
+  td:last-child { color: var(--grey); }
+
+  /* Statement (editorial serif) */
+  .statement { padding: 128px 0; border-bottom: 1px solid var(--line); }
+  .statement blockquote {
+    margin: 0; font-family: var(--font-serif); font-weight: 700;
+    font-size: clamp(32px, 5vw, 64px); line-height: 1.12; letter-spacing: -.01em; max-width: 18em;
+  }
+  .statement blockquote em { font-style: italic; font-weight: 400; color: var(--grey); }
+  .statement .label { margin-top: 40px; margin-bottom: 0; }
+
+  /* Footer */
+  footer { padding: 40px 0; }
+  .foot { display: flex; flex-wrap: wrap; gap: 16px 32px; justify-content: space-between; align-items: center;
+    font-family: var(--font-mono); font-size: 12px; color: var(--grey); text-transform: uppercase; letter-spacing: .1em; }
+  .foot a { text-decoration: none; }
+  .foot a:hover { color: var(--white); }
+  .status { color: var(--ok); }
+  .graal { margin: 0 0 32px; padding-bottom: 32px; border-bottom: 1px solid var(--line);
+    font-size: 16px; font-weight: 300; }
+  .graal b { font-weight: 600; color: var(--blue); }
+
+  /* Responsive */
+  @media (max-width: 980px) {
+    .hero-grid { grid-template-columns: minmax(0, 1fr); gap: 48px; }
+    .features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ref-grid { grid-template-columns: minmax(0, 1fr); }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .stat:nth-child(2) { border-right: 0; }
+    .stat:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+  }
+  @media (max-width: 720px) {
+    body { font-size: 17px; }
+    .nav a.link { display: none; }
+    .hero .wrap { padding-top: 64px; padding-bottom: 64px; }
+    section.block { padding: 72px 0; }
+    .features, .install-grid, .example-list { grid-template-columns: minmax(0, 1fr); }
+    .feature, .install-col { padding: 24px; }
+    .statement { padding: 80px 0; }
+    .lead { font-size: 18px; }
+    .btn { width: 100%; }
+    .cta { flex-direction: column; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="logo" href="#top" aria-label="borba-mgrep home">borba-mgrep<span class="dot">.</span></a>
+    <nav class="nav" aria-label="Main">
+      <a class="link" href="#features">Features</a>
+      <a class="link" href="#examples">Examples</a>
+      <a class="link" href="#install">Install</a>
+      <a class="link" href="#reference">Reference</a>
+      <a class="btn btn-outline btn-small" href="https://github.com/AF2B/borba-mgrep">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <!-- HERO -->
+  <section class="hero" id="top">
+    <div class="grid-bg" aria-hidden="true"></div>
+    <div class="blob one" aria-hidden="true"></div>
+    <div class="blob two" aria-hidden="true"></div>
+    <div class="wrap">
+      <div class="hero-grid">
+        <div>
+          <p class="label">[ Grep with semantic filtering ]</p>
+          <h1>Grep that filters what it finds<span class="dot">.</span></h1>
+          <p class="lead">Find lines with <strong>text or a regex</strong>, then keep only the ones that pass a small expression like <span class="mono" style="color:var(--blue)">group("code") &gt;= 500</span>. One executable. No JVM.</p>
+          <div class="cta">
+            <a class="btn btn-primary" id="download" href="https://github.com/AF2B/borba-mgrep/releases/latest">Download <span id="dl-version">latest</span></a>
+            <a class="btn btn-outline" href="https://github.com/AF2B/borba-mgrep">View on GitHub</a>
+          </div>
+          <ul class="chips" aria-label="Project facts">
+            <li class="chip"><b>Release</b> <span id="chip-version">v2</span></li>
+            <li class="chip"><b>License</b> MIT</li>
+            <li class="chip"><b>Platforms</b> Linux · Windows</li>
+            <li class="chip"><b>Built with</b> Clojure</li>
+          </ul>
+        </div>
+
+        <div class="terminal" role="img" aria-label="Terminal showing mgrep filtering a log for status codes of 500 or more">
+          <div class="terminal-bar" aria-hidden="true">
+            <span class="sq live"></span><span class="sq"></span><span class="sq"></span>
+            <span class="title">mgrep · app.log</span>
+          </div>
+<pre id="hero-terminal" aria-hidden="true"></pre>
+          <noscript><pre>$ mgrep app.log --match '/status=(?&lt;code&gt;\d+)/' --where 'group("code") &gt;= 500'
+2026-10-31 10:00:09 ERROR status=503 upstream timeout
+2026-10-31 10:00:21 ERROR status=500 db connection lost</pre></noscript>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="stats" aria-label="At a glance">
+    <div class="wrap">
+      <div class="stats-grid">
+        <div class="stat"><div class="num">0<span>.</span></div><p class="label grey" style="margin-top:12px;margin-bottom:0">Dependencies</p></div>
+        <div class="stat"><div class="num">5<span>MB</span></div><p class="label grey" style="margin-top:12px;margin-bottom:0">Native executable</p></div>
+        <div class="stat"><div class="num">2<span>.</span></div><p class="label grey" style="margin-top:12px;margin-bottom:0">Platforms</p></div>
+        <div class="stat"><div class="num">0<span>.</span></div><p class="label grey" style="margin-top:12px;margin-bottom:0">JVMs required</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="block" id="features">
+    <div class="wrap">
+      <p class="label">[ 01 / Features ]</p>
+      <h2>Small tool. Sharp edges<span class="dot">.</span></h2>
+      <p class="section-lead">Everything grep users reach for, plus a filter language that understands the line, its number and the groups your regex captured.</p>
+
+      <div class="features">
+        <article class="feature">
+          <span class="idx">01</span>
+          <h3>Text or regex</h3>
+          <p>Plain text ignores case. Wrap a pattern in slashes for a regex, with named groups you can reuse.</p>
+          <code>--match '/id=(?&lt;id&gt;\w+)/'</code>
+        </article>
+        <article class="feature">
+          <span class="idx">02</span>
+          <h3>Semantic filters</h3>
+          <p>Keep a match only if an expression holds. Repeat the flag and every clause must pass. No <span class="mono">eval</span>.</p>
+          <code>--where 'line.length &gt; 120'</code>
+        </article>
+        <article class="feature">
+          <span class="idx">03</span>
+          <h3>Count by group</h3>
+          <p>Get how many matches there are per value of a group, most frequent first. Replaces a pipe of sort and uniq.</p>
+          <code>--count-by level</code>
+        </article>
+        <article class="feature">
+          <span class="idx">04</span>
+          <h3>JSON output</h3>
+          <p>One JSON object per match, with the line number, the text and the groups. Ready for jq and scripts.</p>
+          <code>--emit json</code>
+        </article>
+        <article class="feature">
+          <span class="idx">05</span>
+          <h3>Pipes and scripts</h3>
+          <p>Reads files or standard input. Exit code 0 matched, 1 nothing matched, 2 error. Stops when the pipe closes.</p>
+          <code>tail -f app.log | mgrep …</code>
+        </article>
+        <article class="feature">
+          <span class="idx">06</span>
+          <h3>Native executable</h3>
+          <p>Written in Clojure and built with GraalVM. Download one file, install it, run it. Uninstall script included.</p>
+          <code>install · uninstall</code>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXAMPLES -->
+  <section class="block" id="examples">
+    <div class="wrap">
+      <p class="label">[ 02 / Examples ]</p>
+      <h2>Learn it in four commands<span class="dot">.</span></h2>
+      <p class="section-lead">The general form is <span class="mono" style="color:var(--white)">mgrep &lt;file&gt; --match &lt;pattern&gt; [--where &lt;expression&gt;]…</span> Leave out the file to read from a pipe. Every example below uses this log.</p>
+
+      <div class="example sample">
+        <header><p class="label">app.log</p><button class="copy" data-copy="sample">Copy</button></header>
+<pre id="sample"><span class="dim">2026-10-31 10:00:01 INFO  server started port=8080
+2026-10-31 10:00:05 WARN  slow query took=1200ms
+2026-10-31 10:00:09 ERROR status=503 upstream timeout
+2026-10-31 10:00:12 INFO  GET /health status=200
+2026-10-31 10:00:15 ERROR status=404 route not found
+2026-10-31 10:00:21 ERROR status=500 db connection lost</span></pre>
+      </div>
+
+      <div class="example-list">
+        <div class="example">
+          <header><p class="label">01 · Use a number from the line</p><button class="copy" data-copy="ex1">Copy</button></header>
+<pre><span id="ex1">mgrep app.log --match '/status=(?&lt;code&gt;\d+)/' --where 'group("code") &gt;= 500'</span>
+<span class="out">2026-10-31 10:00:09 ERROR status=503 upstream timeout
+2026-10-31 10:00:21 ERROR status=500 db connection lost</span></pre>
+          <p class="note">Name a group in the regex, read it with <span class="mono">group("code")</span>. Numeric text compares as a number.</p>
+        </div>
+
+        <div class="example">
+          <header><p class="label">02 · Combine filters</p><button class="copy" data-copy="ex2">Copy</button></header>
+<pre><span id="ex2">mgrep app.log --match ERROR \
+  --where 'line.number &gt; 3' \
+  --where 'line.contains("not found")'</span>
+<span class="out">2026-10-31 10:00:15 ERROR status=404 route not found</span></pre>
+          <p class="note">Repeat <span class="mono">--where</span>. Every clause has to hold.</p>
+        </div>
+
+        <div class="example">
+          <header><p class="label">03 · Count by a value</p><button class="copy" data-copy="ex3">Copy</button></header>
+<pre><span id="ex3">mgrep app.log --match '/(?&lt;level&gt;INFO|WARN|ERROR)/' --count-by level</span>
+<span class="out">3 ERROR
+2 INFO
+1 WARN</span></pre>
+          <p class="note">Most frequent first. Filters still apply to what gets counted.</p>
+        </div>
+
+        <div class="example">
+          <header><p class="label">04 · Get JSON</p><button class="copy" data-copy="ex4">Copy</button></header>
+<pre><span id="ex4">mgrep app.log --match '/status=(?&lt;code&gt;\d+)/' --where 'group("code") &gt;= 500' --emit json</span>
+<span class="out">{"line":3,"content":"2026-10-31 10:00:09 ERROR status=503 upstream timeout","groups":{"code":"503"}}
+{"line":6,"content":"2026-10-31 10:00:21 ERROR status=500 db connection lost","groups":{"code":"500"}}</span></pre>
+          <p class="note">One object per line, so tools like <span class="mono">jq</span> read it directly.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSTALL -->
+  <section class="block" id="install">
+    <div class="wrap">
+      <p class="label">[ 03 / Install ]</p>
+      <h2>Download. Run. Done<span class="dot">.</span></h2>
+      <p class="section-lead">Grab the archive for your system from the <a href="https://github.com/AF2B/borba-mgrep/releases/latest" style="color:var(--white)">latest release</a>. Each one ships with an install and an uninstall script.</p>
+
+      <div class="install-grid">
+        <div class="install-col">
+          <p class="label">Windows 11 / 10</p>
+          <h3>Double-click</h3>
+          <ol class="steps">
+            <li>Extract <code>borba-mgrep-&lt;version&gt;-windows-x64.zip</code>.</li>
+            <li>Double-click <code>install</code>. If Windows warns about an unrecognized app, choose <b>More info</b>, then <b>Run anyway</b>.</li>
+            <li>Open a new terminal and run <code>mgrep --help</code>.</li>
+          </ol>
+          <p class="fine">To remove it, double-click <code>uninstall</code> in the same folder.</p>
+        </div>
+        <div class="install-col">
+          <p class="label">Linux x64</p>
+          <h3>Three lines</h3>
+          <div class="terminal">
+<pre id="linux-install" style="color:var(--blue)">tar -xzf borba-mgrep-&lt;version&gt;-linux-x64.tar.gz
+cd borba-mgrep-&lt;version&gt;-linux-x64
+./install.sh</pre>
+          </div>
+          <p class="fine">Installs to <span class="mono">~/.local/bin</span>. Run <span class="mono">./uninstall.sh</span> to remove it.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REFERENCE -->
+  <section class="block" id="reference">
+    <div class="wrap">
+      <p class="label">[ 04 / Reference ]</p>
+      <h2>Everything on one screen<span class="dot">.</span></h2>
+      <p class="section-lead">Run <span class="mono" style="color:var(--white)">mgrep --help</span> to see it in your terminal.</p>
+
+      <div class="ref-grid">
+        <div class="ref-card">
+          <h3>Patterns</h3>
+          <table>
+            <tr><td><code>error</code></td><td>Plain text. Ignores case by default.</td></tr>
+            <tr><td><code>/err(or|warn)/</code></td><td>Regex between slashes. Respects case.</td></tr>
+            <tr><td><code>/id=(?&lt;id&gt;\w+)/</code></td><td>Regex with a named group.</td></tr>
+            <tr><td><code>--case</code></td><td><span class="mono">sensitive</span> or <span class="mono">insensitive</span>.</td></tr>
+          </table>
+        </div>
+        <div class="ref-card">
+          <h3>Where expressions</h3>
+          <table>
+            <tr><td><code>line.length</code></td><td>Characters in the line.</td></tr>
+            <tr><td><code>line.number</code></td><td>1-based line number.</td></tr>
+            <tr><td><code>line.content</code></td><td>The line text.</td></tr>
+            <tr><td><code>line.contains("x")</code></td><td>Also <span class="mono">startswith</span>, <span class="mono">endswith</span>.</td></tr>
+            <tr><td><code>group("name")</code></td><td>A named regex group.</td></tr>
+            <tr><td><code>&gt; &lt; &gt;= &lt;= == !=</code></td><td>Compare. Join with <span class="mono">and or not ( )</span>.</td></tr>
+          </table>
+        </div>
+        <div class="ref-card">
+          <h3>Options and exit codes</h3>
+          <table>
+            <tr><td><code>--where EXPR</code></td><td>Repeatable. All must hold.</td></tr>
+            <tr><td><code>--count-by NAME</code></td><td>Count per group value.</td></tr>
+            <tr><td><code>--emit json</code></td><td>One JSON object per match.</td></tr>
+            <tr><td><code>0</code></td><td>A line matched.</td></tr>
+            <tr><td><code>1</code></td><td>Nothing matched.</td></tr>
+            <tr><td><code>2</code></td><td>Bad usage or an error.</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATEMENT -->
+  <section class="statement">
+    <div class="wrap">
+      <blockquote>Grep tells you <em>where</em> the line is. mgrep also tells you whether it <em>matters</em>.</blockquote>
+      <p class="label">Borba Sovereign Computing House</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p class="graal"><b>Developed in Clojure</b> and distributed as a native image by <b>GraalVM</b>: one executable, no JVM required.</p>
+    <div class="foot">
+      <span>© 2026 André Borba · <a href="https://github.com/AF2B/borba-mgrep/blob/main/LICENSE">MIT</a></span>
+      <span><a href="https://github.com/AF2B/borba-mgrep">GitHub</a> · <a href="https://github.com/AF2B/borba-mgrep/releases">Releases</a> · <a href="https://github.com/AF2B/borba-mgrep/blob/main/CHANGELOG.md">Changelog</a></span>
+      <span><span class="status">●</span> Operational · <span id="utc">--:--:-- UTC</span></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* Hero terminal: typing at 50 ms per character, then the output */
+  var term = document.getElementById('hero-terminal');
+  var command = "mgrep app.log --match '/status=(?<code>\\d+)/' \\\n  --where 'group(\"code\") >= 500'";
+  var output = [
+    '2026-10-31 10:00:09 ERROR status=503 upstream timeout',
+    '2026-10-31 10:00:21 ERROR status=500 db connection lost'
+  ];
+  function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function render(typed, showOutput, cursor) {
+    var html = '<span class="dim">$ </span>' + esc(typed);
+    if (showOutput) {
+      html += '\n\n' + output.map(function (l) { return '<span class="out">' + esc(l) + '</span>'; }).join('\n');
+      html += '\n\n<span class="dim">$ </span>';
+    }
+    if (cursor) html += '<span class="cursor"></span>';
+    term.innerHTML = html;
+  }
+  if (reduce) {
+    render(command, true, true);
+  } else {
+    var i = 0;
+    (function type() {
+      render(command.slice(0, i), false, true);
+      if (i < command.length) { i++; setTimeout(type, 50); }
+      else { setTimeout(function () { render(command, true, true); }, 450); }
+    })();
+  }
+
+  /* Copy buttons */
+  document.querySelectorAll('.copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var el = document.getElementById(btn.getAttribute('data-copy'));
+      var text = el.innerText.trim();
+      var done = function () {
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () {});
+      }
+    });
+  });
+
+  /* UTC clock in the footer */
+  var utc = document.getElementById('utc');
+  function tick() {
+    var d = new Date();
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    utc.textContent = p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds()) + ' UTC';
+  }
+  tick(); setInterval(tick, 1000);
+
+  /* Show the latest published version when the GitHub API answers */
+  if (window.fetch) {
+    fetch('https://api.github.com/repos/AF2B/borba-mgrep/releases/latest', { headers: { Accept: 'application/vnd.github+json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (release) {
+        if (!release || !release.tag_name) return;
+        document.getElementById('dl-version').textContent = release.tag_name;
+        document.getElementById('chip-version').textContent = release.tag_name;
+      })
+      .catch(function () {});
+  }
+})();
+</script>
+</body>
+</html>
